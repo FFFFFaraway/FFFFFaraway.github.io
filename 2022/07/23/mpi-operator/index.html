@@ -1,0 +1,739 @@
+
+
+<!DOCTYPE html>
+<html lang="en" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Song Wei">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="MPI Operator是由kubeflow社区开发的，首先可以看看他们给的proposal文档https:&#x2F;&#x2F;github.com&#x2F;kubeflow&#x2F;community&#x2F;blob&#x2F;master&#x2F;proposals&#x2F;mpi-operator-proposal.md 之前我们使用过它来将模型训练任务部署到K8S中。这次我想来仔细看看它的实现原理。 回顾上次使用MPIJob是新建的CRD，用来描述MP">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MPI Operator原理分析">
+<meta property="og:url" content="https://fffffaraway.github.io/2022/07/23/mpi-operator/index.html">
+<meta property="og:site_name" content="Faraway">
+<meta property="og:description" content="MPI Operator是由kubeflow社区开发的，首先可以看看他们给的proposal文档https:&#x2F;&#x2F;github.com&#x2F;kubeflow&#x2F;community&#x2F;blob&#x2F;master&#x2F;proposals&#x2F;mpi-operator-proposal.md 之前我们使用过它来将模型训练任务部署到K8S中。这次我想来仔细看看它的实现原理。 回顾上次使用MPIJob是新建的CRD，用来描述MP">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://fffffaraway.github.io/img/1.png">
+<meta property="article:published_time" content="2022-07-23T09:01:29.000Z">
+<meta property="article:modified_time" content="2022-07-25T09:53:57.103Z">
+<meta property="article:author" content="Song Wei">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://fffffaraway.github.io/img/1.png">
+  
+  
+  
+  <title>MPI Operator原理分析 - Faraway</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"fffffaraway.github.io","root":"/","version":"1.9.2","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.2.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>Fluid</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                Home
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                Archives
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                Categories
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                Tags
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                About
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="MPI Operator原理分析"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2022-07-23 17:01" pubdate>
+          July 23, 2022 pm
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          9.9k words
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          83 mins
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">MPI Operator原理分析</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>MPI Operator是由kubeflow社区开发的，首先可以看看他们给的proposal文档<a target="_blank" rel="noopener" href="https://github.com/kubeflow/community/blob/master/proposals/mpi-operator-proposal.md">https://github.com/kubeflow/community/blob/master/proposals/mpi-operator-proposal.md</a></p>
+<p>之前我们使用过它来将模型训练任务部署到K8S中。这次我想来仔细看看它的实现原理。</p>
+<h1 id="回顾上次使用"><a href="#回顾上次使用" class="headerlink" title="回顾上次使用"></a>回顾上次使用</h1><p>MPIJob是新建的CRD，用来描述MPI training的任务，比如以下是一个模型训练任务：</p>
+<details>
+    <summary>MPIJob yaml</summary> <!-- Good place for a CTA (Call to Action) -->
+ <!-- empty line *️⃣  -->
+  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">kubeflow.org/v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">MPIJob</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">sw-simple-ml-gitlab</span><br><span class="hljs-attr">namespace:</span> <span class="hljs-string">mpi-operator</span><br><span class="hljs-attr">spec:</span><br>  <span class="hljs-attr">mpiReplicaSpecs:</span><br>    <span class="hljs-attr">Launcher:</span><br>      <span class="hljs-attr">replicas:</span> <span class="hljs-number">1</span><br>      <span class="hljs-attr">template:</span><br>        <span class="hljs-attr">spec:</span><br>          <span class="hljs-attr">containers:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-attr">args:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">sleep</span> <span class="hljs-string">1m</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">mkdir</span> <span class="hljs-string">simple_ml</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">cd</span> <span class="hljs-string">simple_ml</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">horovodrun</span> <span class="hljs-string">-np</span> <span class="hljs-number">2</span> <span class="hljs-string">--hostfile</span><br>              <span class="hljs-string">/etc/mpi/hostfile</span> <span class="hljs-string">python</span> <span class="hljs-string">main_with_horovod.py</span><br>            <span class="hljs-attr">command:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;/bin/sh&quot;</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;-c&quot;</span><br>            <span class="hljs-attr">image:</span> <span class="hljs-string">coreharbor.bdap.com/library/horovod-sw-base</span><br>            <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-master</span><br>    <span class="hljs-attr">Worker:</span><br>      <span class="hljs-attr">replicas:</span> <span class="hljs-number">2</span><br>      <span class="hljs-attr">template:</span><br>        <span class="hljs-attr">spec:</span><br>          <span class="hljs-attr">containers:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-attr">args:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">git</span> <span class="hljs-string">-c</span> <span class="hljs-string">http.sslVerify=false</span> <span class="hljs-string">clone</span> <span class="hljs-string">&lt;https://gitlab.bdap.com/faraway/simple_ml.git&gt;</span><br>              <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">cd</span> <span class="hljs-string">simple_ml</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">pip</span> <span class="hljs-string">install</span> <span class="hljs-string">-r</span> <span class="hljs-string">requirements.txt</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">chmod</span> <span class="hljs-string">+x</span> <span class="hljs-string">init.sh</span><br>              <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">./init.sh</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">sleep</span> <span class="hljs-string">infinity</span><br>            <span class="hljs-attr">command:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;/bin/sh&quot;</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;-c&quot;</span><br>            <span class="hljs-attr">image:</span> <span class="hljs-string">coreharbor.bdap.com/library/horovod-sw-base</span><br>            <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-worker</span><br>            <span class="hljs-attr">resources:</span><br>              <span class="hljs-attr">limits:</span><br>                <span class="hljs-attr">nvidia.com/gpu:</span> <span class="hljs-number">1</span><br>          <span class="hljs-attr">tolerations:</span><br>          <span class="hljs-bullet">-</span> <span class="hljs-attr">effect:</span> <span class="hljs-string">NoSchedule</span><br>            <span class="hljs-attr">key:</span> <span class="hljs-string">gpu</span><br>            <span class="hljs-attr">operator:</span> <span class="hljs-string">Exists</span><br>  <span class="hljs-attr">runPolicy:</span><br>    <span class="hljs-attr">cleanPodPolicy:</span> <span class="hljs-string">Running</span><br>  <span class="hljs-attr">slotsPerWorker:</span> <span class="hljs-number">1</span><br></code></pre></td></tr></table></figure>
+</details>
+<!-- empty line *️⃣  -->
+
+<p>根据该MPIJob的内容，我们期望其Controller可以生成一个Launcher Pod与多个Workers Pods来执行任务，比如：</p>
+<details>
+    <summary>Launcher Pod（部分信息省略）</summary> <!-- Good place for a CTA (Call to Action) -->
+ <!-- empty line *️⃣  -->
+  <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">Pod</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">sw-simple-ml-gitlab-launcher</span><br><span class="hljs-attr">spec:</span><br>  <span class="hljs-attr">containers:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">args:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">sleep</span> <span class="hljs-string">1m</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">mkdir</span> <span class="hljs-string">simple_ml</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">cd</span> <span class="hljs-string">simple_ml</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">horovodrun</span> <span class="hljs-string">-np</span> <span class="hljs-number">2</span> <span class="hljs-string">--hostfile</span> <span class="hljs-string">/etc/mpi/hostfile</span><br>      <span class="hljs-string">python</span> <span class="hljs-string">main_with_horovod.py</span><br>    <span class="hljs-attr">command:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">/bin/sh</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">-c</span><br>    <span class="hljs-attr">env:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">OMPI_MCA_plm_rsh_agent</span><br>      <span class="hljs-attr">value:</span> <span class="hljs-string">/etc/mpi/kubexec.sh</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">OMPI_MCA_orte_default_hostfile</span><br>      <span class="hljs-attr">value:</span> <span class="hljs-string">/etc/mpi/hostfile</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">NVIDIA_VISIBLE_DEVICES</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">NVIDIA_DRIVER_CAPABILITIES</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">coreharbor.bdap.com/library/horovod-sw-base</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-master</span><br>    <span class="hljs-attr">volumeMounts:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/opt/kube</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-kubectl</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/etc/mpi</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-config</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/var/run/secrets/kubernetes.io/serviceaccount</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">kube-api-access-jf6hw</span><br>      <span class="hljs-attr">readOnly:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-attr">initContainers:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">env:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">TARGET_DIR</span><br>      <span class="hljs-attr">value:</span> <span class="hljs-string">/opt/kube</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">NAMESPACE</span><br>      <span class="hljs-attr">value:</span> <span class="hljs-string">mpi-operator</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">mpioperator/kubectl-delivery:latest</span><br>    <span class="hljs-attr">imagePullPolicy:</span> <span class="hljs-string">IfNotPresent</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">kubectl-delivery</span><br>    <span class="hljs-attr">resources:</span> <span class="hljs-string">...</span><br>    <span class="hljs-attr">terminationMessagePath:</span> <span class="hljs-string">/dev/termination-log</span><br>    <span class="hljs-attr">terminationMessagePolicy:</span> <span class="hljs-string">File</span><br>    <span class="hljs-attr">volumeMounts:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/opt/kube</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-kubectl</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/etc/mpi</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-config</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/var/run/secrets/kubernetes.io/serviceaccount</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">kube-api-access-jf6hw</span><br>      <span class="hljs-attr">readOnly:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-attr">restartPolicy:</span> <span class="hljs-string">Never</span><br>  <span class="hljs-attr">serviceAccountName:</span> <span class="hljs-string">sw-simple-ml-gitlab-launcher</span><br>  <span class="hljs-attr">volumes:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">emptyDir:</span> &#123;&#125;<br>    <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-kubectl</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">configMap:</span><br>      <span class="hljs-attr">defaultMode:</span> <span class="hljs-number">420</span><br>      <span class="hljs-attr">items:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">key:</span> <span class="hljs-string">kubexec.sh</span><br>        <span class="hljs-attr">mode:</span> <span class="hljs-number">365</span><br>        <span class="hljs-attr">path:</span> <span class="hljs-string">kubexec.sh</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">key:</span> <span class="hljs-string">hostfile</span><br>        <span class="hljs-attr">mode:</span> <span class="hljs-number">292</span><br>        <span class="hljs-attr">path:</span> <span class="hljs-string">hostfile</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">key:</span> <span class="hljs-string">discover_hosts.sh</span><br>        <span class="hljs-attr">mode:</span> <span class="hljs-number">365</span><br>        <span class="hljs-attr">path:</span> <span class="hljs-string">discover_hosts.sh</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">sw-simple-ml-gitlab-config</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-config</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">kube-api-access-jf6hw</span><br><span class="hljs-string">...</span><br></code></pre></td></tr></table></figure>
+</details>
+<!-- empty line *️⃣  -->
+
+<details>
+    <summary>Worker Pod（部分信息省略）</summary>
+<!-- empty line -->
+    <figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">Pod</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">sw-simple-ml-gitlab-worker-0</span><br><span class="hljs-attr">spec:</span><br>  <span class="hljs-attr">containers:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">args:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">git</span> <span class="hljs-string">-c</span> <span class="hljs-string">http.sslVerify=false</span> <span class="hljs-string">clone</span> <span class="hljs-string">&lt;https://gitlab.bdap.com/faraway/simple_ml.git&gt;</span><br>      <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">cd</span> <span class="hljs-string">simple_ml</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">pip</span> <span class="hljs-string">install</span> <span class="hljs-string">-r</span> <span class="hljs-string">requirements.txt</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">chmod</span> <span class="hljs-string">+x</span> <span class="hljs-string">init.sh</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">./init.sh</span><br>      <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">sleep</span> <span class="hljs-string">infinity</span><br>    <span class="hljs-attr">command:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">/bin/sh</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">-c</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">coreharbor.bdap.com/library/horovod-sw-base</span><br>    <span class="hljs-attr">imagePullPolicy:</span> <span class="hljs-string">Always</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-worker</span><br>    <span class="hljs-attr">resources:</span><br>      <span class="hljs-attr">limits:</span><br>        <span class="hljs-attr">nvidia.com/gpu:</span> <span class="hljs-string">&quot;1&quot;</span><br>      <span class="hljs-attr">requests:</span><br>        <span class="hljs-attr">nvidia.com/gpu:</span> <span class="hljs-string">&quot;1&quot;</span><br>    <span class="hljs-attr">volumeMounts:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/etc/mpi</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-config</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-attr">mountPath:</span> <span class="hljs-string">/var/run/secrets/kubernetes.io/serviceaccount</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">kube-api-access-qw2jr</span><br>      <span class="hljs-attr">readOnly:</span> <span class="hljs-literal">true</span><br>  <span class="hljs-attr">tolerations:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">effect:</span> <span class="hljs-string">NoSchedule</span><br>    <span class="hljs-attr">key:</span> <span class="hljs-string">gpu</span><br>    <span class="hljs-attr">operator:</span> <span class="hljs-string">Exists</span><br>  <span class="hljs-attr">volumes:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">configMap:</span><br>      <span class="hljs-attr">defaultMode:</span> <span class="hljs-number">420</span><br>      <span class="hljs-attr">items:</span><br>      <span class="hljs-bullet">-</span> <span class="hljs-attr">key:</span> <span class="hljs-string">kubexec.sh</span><br>        <span class="hljs-attr">mode:</span> <span class="hljs-number">365</span><br>        <span class="hljs-attr">path:</span> <span class="hljs-string">kubexec.sh</span><br>      <span class="hljs-attr">name:</span> <span class="hljs-string">sw-simple-ml-gitlab-config</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">mpi-job-config</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">name:</span> <span class="hljs-string">kube-api-access-qw2jr</span><br>  <span class="hljs-string">...</span><br></code></pre></td></tr></table></figure>
+</details>
+<!-- empty line -->
+
+
+<h1 id="从生成的Pod来猜测Controller做了什么"><a href="#从生成的Pod来猜测Controller做了什么" class="headerlink" title="从生成的Pod来猜测Controller做了什么"></a>从生成的Pod来猜测Controller做了什么</h1><p>首先Controller需要把MPIJob中的信息写入生成的Pod中。对于Worker Pod来说，就足够了，只需要等待Launcher发送命令。</p>
+<p>而对于Launcher Pod来说，Controller还要为它做一些额外的事情，包括：</p>
+<ol>
+<li>添加volumes，&#x2F;etc&#x2F;mpi挂载一个ConfigMap，其中hostfile内容为workers的名字。第二个是&#x2F;opt&#x2F;kube，挂载emptyDir，用于接收initContainer的信息。</li>
+<li>新增一个initContainer，名为kubectl-delivery，可以看到有一个环境变量<code>TARGET_DIR</code>为&#x2F;opt&#x2F;kube，在具体看其实现之前，我们可以猜测它的作用是将一些东西放到&#x2F;opt&#x2F;kube下，以供主container使用。</li>
+</ol>
+<h2 id="kubectl-delivery"><a href="#kubectl-delivery" class="headerlink" title="kubectl-delivery"></a>kubectl-delivery</h2><p>关键在于kubectl-delivery，现在我们通过代码，来具体看看kubectl-delivery的流程：</p>
+<ol>
+<li>从<a target="_blank" rel="noopener" href="https://github.com/kubeflow/mpi-operator/blob/993b010e05c48c6f6ef5a5180362ccd3e716982e/cmd/kubectl-delivery/Dockerfile#L17">Dockerfile</a>中看它的启动命令为<code>cp /bin/kubectl /opt/kube/kubectl; /bin/kubectl-delivery -alsologtostderr</code>，将kubectl文件cp到&#x2F;opt&#x2F;kube下</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubeflow/mpi-operator/blob/993b010e05c48c6f6ef5a5180362ccd3e716982e/cmd/kubectl-delivery/app/server.go#L95">源码</a>，解析&#x2F;etc&#x2F;mpi下的hostfile（由Controller生成，通过ConfigMap挂载），找到workers对应的Pod名字</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubeflow/mpi-operator/blob/993b010e05c48c6f6ef5a5180362ccd3e716982e/pkg/controllers/kubectl_delivery/controller.go#L75">源码</a>，在<code>NewKubectlDeliveryController</code>中，将这些Pod加入watchedPods列表</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubeflow/mpi-operator/blob/993b010e05c48c6f6ef5a5180362ccd3e716982e/pkg/controllers/kubectl_delivery/controller.go#L132">源码</a>，监听workers Pod，一旦正常运行则从watchedPods中删除</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/kubeflow/mpi-operator/blob/993b010e05c48c6f6ef5a5180362ccd3e716982e/pkg/controllers/kubectl_delivery/controller.go#L150">源码</a>，等待workers全部正常运行后，在&#x2F;opt&#x2F;kube下生成hosts文件，里面记录了workers和自己（通过&#x2F;etc&#x2F;hosts最后一行获取）的Pod名字与对应IP</li>
+</ol>
+<p>因此，kubectl-delivery一共做了三件事：</p>
+<ol>
+<li>等待Workers Pod就绪</li>
+<li>生成hosts文件，包含了Launcher和Workers Pod的名字与IP（不过我后续发现这个似乎没有发挥作用）</li>
+<li>拷贝kubectl可执行文件</li>
+</ol>
+<p>kubectl与hosts文件都放在&#x2F;opt&#x2F;kube下，以供主container使用。</p>
+<h2 id="Launcher-main-container"><a href="#Launcher-main-container" class="headerlink" title="Launcher main container"></a>Launcher main container</h2><p>但是问题来了。我们的Launcher主container中，是在哪里用了&#x2F;opt&#x2F;kube中的两个文件呢？</p>
+<p>如果我们取消kubectl-delivery的执行，可以查看主container的报错：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs bash">ssh not successful <span class="hljs-keyword">for</span> host sw-simple-ml-gitlab-worker-1:<br>+ POD_NAME=sw-simple-ml-gitlab-worker-1<br>+ <span class="hljs-built_in">shift</span><br>+ /opt/kube/kubectl <span class="hljs-built_in">exec</span> sw-simple-ml-gitlab-worker-1 -- /bin/sh -c <span class="hljs-literal">true</span><br>/etc/mpi/kubexec.sh: 5: /opt/kube/kubectl: not found<br><br>ssh not successful <span class="hljs-keyword">for</span> host sw-simple-ml-gitlab-worker-0:<br>+ POD_NAME=sw-simple-ml-gitlab-worker-0<br>+ <span class="hljs-built_in">shift</span><br>+ /opt/kube/kubectl <span class="hljs-built_in">exec</span> sw-simple-ml-gitlab-worker-0 -- /bin/sh -c <span class="hljs-literal">true</span><br>/etc/mpi/kubexec.sh: 5: /opt/kube/kubectl: not found<br><br>Traceback (most recent call last):<br>  File <span class="hljs-string">&quot;/usr/local/bin/horovodrun&quot;</span>, line 8, <span class="hljs-keyword">in</span> &lt;module&gt;<br>    sys.exit(run_commandline())<br>  File <span class="hljs-string">&quot;/usr/local/lib/python3.8/dist-packages/horovod/runner/launch.py&quot;</span>, line 773, <span class="hljs-keyword">in</span> run_commandline<br>    _run(args)<br>  File <span class="hljs-string">&quot;/usr/local/lib/python3.8/dist-packages/horovod/runner/launch.py&quot;</span>, line 763, <span class="hljs-keyword">in</span> _run<br>    <span class="hljs-built_in">return</span> _run_static(args)<br>  File <span class="hljs-string">&quot;/usr/local/lib/python3.8/dist-packages/horovod/runner/launch.py&quot;</span>, line 589, <span class="hljs-keyword">in</span> _run_static<br>    raise RuntimeError(<span class="hljs-string">&#x27;could not connect to some hosts via ssh&#x27;</span>)<br>RuntimeError: could not connect to some hosts via ssh<br></code></pre></td></tr></table></figure>
+
+<p>可以看到是由<code>/etc/mpi/kubexec.sh</code>调用，那么谁在调用<code>kubexec.sh</code>呢？</p>
+<p>查看Launcher Pod可以发现我们有一个环境变量<code>OMPI_MCA_plm_rsh_agent</code>，因此合理猜想，会不会是mpirun在使用之前会用该环境变量对应的脚本来发现worker？</p>
+<p>查看mpirun中MCA参数的文档，<a target="_blank" rel="noopener" href="https://docs.oracle.com/cd/E19708-01/821-1319-10/mca-params.html">https://docs.oracle.com/cd/E19708-01/821-1319-10/mca-params.html</a></p>
+<p><img src="/img/1.png" srcset="/img/loading.gif" lazyload></p>
+<p>查找plm_rsh_agent参数的作用，<a target="_blank" rel="noopener" href="https://www.open-mpi.org/faq/?category=rsh">https://www.open-mpi.org/faq/?category=rsh</a></p>
+<p>我们发现这个参数是用来远程执行命令的连接方式前缀，取值一般为ssh或者rsh。</p>
+<p>举例说明，比如我们想在服务器server-name执行ls somedir命令，则需要运行<code>$OMPI_MCA_plm_rsh_agent server-name ls somedir</code></p>
+<p>我们具体看看<code>kubexec.sh</code></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash"><span class="hljs-meta">#!/bin/sh</span><br><span class="hljs-built_in">set</span> -x<br>POD_NAME=<span class="hljs-variable">$1</span><br><span class="hljs-built_in">shift</span><br>/opt/kube/kubectl <span class="hljs-built_in">exec</span> <span class="hljs-variable">$&#123;POD_NAME&#125;</span> -- /bin/sh -c <span class="hljs-string">&quot;$*&quot;</span><br></code></pre></td></tr></table></figure>
+
+<ol>
+<li>set -x显示脚本的执行过程</li>
+<li>POD_NAME为接受的第一个参数，也即连接的服务器名字</li>
+<li>通过shift让参数后移（移除了第一个POD_NAME参数）。</li>
+<li>让kubectl exec来远程执行后面的命令</li>
+</ol>
+<p>用kubectl exec的连接方式替换了ssh的连接方式（妙</p>
+<p>还可以稍微在看一下运行的命令具体是什么，截取一部分（因为包含非常多不相干的环境变量</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs bash">/opt/kube/kubectl <span class="hljs-built_in">exec</span> sw-simple-ml-gitlab-worker-1 -- /bin/sh -c<br><span class="hljs-built_in">cd</span> /simple_ml &gt; /dev/null 2&gt;&amp;1 ;<br>HOROVOD_HOSTNAME=sw-simple-ml-gitlab-worker-1<br>HOROVOD_RANK=1<br>HOROVOD_SIZE=3<br>HOROVOD_LOCAL_RANK=0<br>HOROVOD_LOCAL_SIZE=1<br>HOROVOD_CROSS_RANK=1<br>HOROVOD_CROSS_SIZE=3<br>PWD=/simple_ml<br>HOROVOD_GLOO_RENDEZVOUS_ADDR=10.244.3.140<br>HOROVOD_GLOO_RENDEZVOUS_PORT=59558<br>HOROVOD_CONTROLLER=gloo<br>HOROVOD_CPU_OPERATIONS=gloo<br>HOROVOD_GLOO_IFACE=eth0<br>NCCL_SOCKET_IFNAME=eth0<br>python main_with_horovod.py<br></code></pre></td></tr></table></figure>
+
+<p>其中HOROVOD_GLOO_RENDEZVOUS_ADDR&#x3D;10.244.3.140正好是Launcher Pod的IP，说明Workers Pod以Launcher Pod为中心进行通信。</p>
+<p>现在还有一个问题是，&#x2F;opt&#x2F;kube文件夹下的hosts似乎没有用到。我尝试将其删除（做法是将kubectl-delivery的命令改为<code>cp /bin/kubectl /opt/kube/kubectl; /bin/kubectl-delivery -alsologtostderr; rm /opt/kube/hosts</code>），也能正确执行任务。因为kubectl exec只需要知道Pod Name就行，不需要IP。以及Worker中的kubexec.sh也不需要挂载（可以由后续我添加的worker验证）。</p>
+<h1 id="实践"><a href="#实践" class="headerlink" title="实践"></a>实践</h1><p>我们已经大概理解了流程，这里举个例子来验证，同时也看看会不会有什么遗漏。比如，如果我想增加一个worker，不用MPI Operator，不修改MPIJob，我应该如何手动写yaml实现？</p>
+<ol>
+<li>创建一个Worker Pod，运行sleep infinity，我这里并没有挂载kubexec.sh以及hostfile</li>
+</ol>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">Pod</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">add-worker</span><br>  <span class="hljs-attr">namespace:</span> <span class="hljs-string">mpi-operator</span><br><span class="hljs-attr">spec:</span><br>  <span class="hljs-attr">containers:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">args:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">git</span> <span class="hljs-string">-c</span> <span class="hljs-string">http.sslVerify=false</span> <span class="hljs-string">clone</span> <span class="hljs-string">&lt;https://gitlab.bdap.com/faraway/simple_ml.git&gt;</span><br>      <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">cd</span> <span class="hljs-string">simple_ml</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">pip</span> <span class="hljs-string">install</span> <span class="hljs-string">-r</span> <span class="hljs-string">requirements.txt</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">chmod</span> <span class="hljs-string">+x</span> <span class="hljs-string">init.sh</span> <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">./init.sh</span><br>      <span class="hljs-string">&amp;&amp;</span> <span class="hljs-string">sleep</span> <span class="hljs-string">infinity</span><br>    <span class="hljs-attr">command:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">/bin/sh</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-string">-c</span><br>    <span class="hljs-attr">image:</span> <span class="hljs-string">coreharbor.bdap.com/library/horovod-sw-base</span><br>    <span class="hljs-attr">imagePullPolicy:</span> <span class="hljs-string">Always</span><br>    <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-worker</span><br>    <span class="hljs-attr">resources:</span><br>      <span class="hljs-attr">limits:</span><br>        <span class="hljs-attr">nvidia.com/gpu:</span> <span class="hljs-string">&quot;1&quot;</span><br>      <span class="hljs-attr">requests:</span><br>        <span class="hljs-attr">nvidia.com/gpu:</span> <span class="hljs-string">&quot;1&quot;</span><br>  <span class="hljs-attr">dnsConfig:</span><br>    <span class="hljs-attr">nameservers:</span><br>    <span class="hljs-bullet">-</span> <span class="hljs-number">10.105</span><span class="hljs-number">.222</span><span class="hljs-number">.6</span><br>  <span class="hljs-attr">tolerations:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-attr">effect:</span> <span class="hljs-string">NoSchedule</span><br>    <span class="hljs-attr">key:</span> <span class="hljs-string">gpu</span><br>    <span class="hljs-attr">operator:</span> <span class="hljs-string">Exists</span><br></code></pre></td></tr></table></figure>
+
+<ol start="2">
+<li>将该Pod的名字加入ConfigMap的hostfile中。注意要先把ConfigMap的ownerReferences删除。防止Controller覆盖我们的修改。</li>
+</ol>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">v1</span><br><span class="hljs-attr">data:</span><br>  <span class="hljs-attr">discover_hosts.sh:</span> <span class="hljs-bullet">-</span><br>    <span class="hljs-comment">#!/bin/sh</span><br>    <span class="hljs-string">echo</span> <span class="hljs-string">sw-simple-ml-gitlab-worker-0:1</span><br>    <span class="hljs-string">echo</span> <span class="hljs-string">sw-simple-ml-gitlab-worker-1:1</span><br>  <span class="hljs-attr">hostfile:</span> <br>    <span class="hljs-string">sw-simple-ml-gitlab-worker-0</span> <span class="hljs-string">slots=1</span><br>    <span class="hljs-string">sw-simple-ml-gitlab-worker-1</span> <span class="hljs-string">slots=1</span><br>    <span class="hljs-string">add-worker</span> <span class="hljs-string">slots=1</span><br>  <span class="hljs-attr">kubexec.sh:</span> <span class="hljs-bullet">-</span><br>    <span class="hljs-comment">#!/bin/sh</span><br>    <span class="hljs-string">set</span> <span class="hljs-string">-x</span><br>    <span class="hljs-string">POD_NAME=$1</span><br>    <span class="hljs-string">shift</span><br>    <span class="hljs-string">/opt/kube/kubectl</span> <span class="hljs-string">exec</span> <span class="hljs-string">$&#123;POD_NAME&#125;</span> <span class="hljs-string">--</span> <span class="hljs-string">/bin/sh</span> <span class="hljs-string">-c</span> <span class="hljs-string">&quot;$*&quot;</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">ConfigMap</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">sw-simple-ml-gitlab-config</span><br>  <span class="hljs-attr">namespace:</span> <span class="hljs-string">mpi-operator</span><br></code></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>新建一个Launcher Pod，并将运行的np改为3</li>
+</ol>
+<p>不过发现出错，应该是权限问题。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">Error from server (Forbidden): pods <span class="hljs-string">&quot;add-worker&quot;</span> is forbidden:<br>User <span class="hljs-string">&quot;system:serviceaccount:mpi-operator:sw-simple-ml-gitlab-launcher&quot;</span><br>cannot create resource <span class="hljs-string">&quot;pods/exec&quot;</span> <span class="hljs-keyword">in</span> API group <span class="hljs-string">&quot;&quot;</span> <span class="hljs-keyword">in</span> the namespace <span class="hljs-string">&quot;mpi-operator&quot;</span><br></code></pre></td></tr></table></figure>
+
+<ol start="4">
+<li>需要修改RBAC中的Role，添加resourceNames，顺便去掉ownerReferences防止operator覆盖</li>
+</ol>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">rbac.authorization.k8s.io/v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">Role</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">sw-simple-ml-gitlab-launcher</span><br>  <span class="hljs-attr">namespace:</span> <span class="hljs-string">mpi-operator</span><br><span class="hljs-attr">rules:</span><br><span class="hljs-bullet">-</span> <span class="hljs-attr">apiGroups:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;&quot;</span><br>  <span class="hljs-attr">resources:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">pods</span><br>  <span class="hljs-attr">verbs:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">get</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">list</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">watch</span><br><span class="hljs-bullet">-</span> <span class="hljs-attr">apiGroups:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">&quot;&quot;</span><br>  <span class="hljs-attr">resourceNames:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">sw-simple-ml-gitlab-worker-0</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">sw-simple-ml-gitlab-worker-1</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">add-worker</span><br>  <span class="hljs-attr">resources:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">pods/exec</span><br>  <span class="hljs-attr">verbs:</span><br>  <span class="hljs-bullet">-</span> <span class="hljs-string">create</span><br></code></pre></td></tr></table></figure>
+
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>controller做的事情：</p>
+<ol>
+<li>根据MPIJob请求的workers的数量，生成其Pod名字，存储到ConfigMap中，事先写好kubexec.sh脚本</li>
+<li>从MPIJob请求中提取workers Pod信息生成workers，应该没有其他额外操作了</li>
+<li>从MPIJob请求中提取launcher Pod信息生成launcher<ol>
+<li>给Launcher添加initContainer，它们两个共享&#x2F;opt&#x2F;kube</li>
+<li>将ConfigMap挂载到&#x2F;etc&#x2F;mpi，添加环境变量以供mpirun调用&#x2F;etc&#x2F;mpi&#x2F;kubexec.sh</li>
+<li>给Launcher Pod添加ServiceAccount，并给其添加exec workers pod的权限</li>
+</ol>
+</li>
+</ol>
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/uncategorized/" class="category-chain-item">uncategorized</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>MPI Operator原理分析</div>
+      <div>https://fffffaraway.github.io/2022/07/23/mpi-operator/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>Author</div>
+          <div>Song Wei</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>Posted on</div>
+          <div>July 23, 2022</div>
+        </div>
+      
+      
+      <div class="license-meta-item">
+        <div>Licensed under</div>
+        <div>
+          
+            
+            
+              <a target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+              <span class="hint--top hint--rounded" aria-label="BY - Attribution">
+                <i class="iconfont icon-by"></i>
+              </span>
+              </a>
+            
+          
+        </div>
+      </div>
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2022/07/18/r/" title="R">
+                        <span class="hidden-mobile">R</span>
+                        <span class="visible-mobile">Next</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  <article id="comments" lazyload>
+    
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#comments', function() {
+      var light = 'github-light';
+      var dark = 'github-dark';
+      var schema = document.documentElement.getAttribute('data-user-color-scheme');
+      if (schema === 'dark') {
+        schema = dark;
+      } else {
+        schema = light;
+      }
+      window.UtterancesThemeLight = light;
+      window.UtterancesThemeDark = dark;
+      var s = document.createElement('script');
+      s.setAttribute('src', 'https://utteranc.es/client.js');
+      s.setAttribute('repo', 'FFFFFaraway/FFFFFaraway.github.io');
+      s.setAttribute('issue-term', 'pathname');
+      
+      s.setAttribute('label', 'utterances');
+      
+      s.setAttribute('theme', schema);
+      s.setAttribute('crossorigin', 'anonymous');
+      document.getElementById('comments').appendChild(s);
+    })
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+  </article>
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;Table of Contents</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">Search</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">Keyword</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+    </div>
+  
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      headingSelector : CONFIG.toc.headingSelector || 'h1,h2,h3,h4,h5,h6',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      collapseDepth   : CONFIG.toc.collapseDepth || 0,
+      scrollSmooth    : true,
+      headingsOffset  : -boardTop
+    });
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.10/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">Blog works best with JavaScript enabled</div>
+  </noscript>
+</body>
+</html>

@@ -1,0 +1,660 @@
+
+
+<!DOCTYPE html>
+<html lang="en" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Song Wei">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="Triton Server官方文档可以参考，https:&#x2F;&#x2F;github.com&#x2F;triton-inference-server&#x2F;server&#x2F;blob&#x2F;main&#x2F;docs&#x2F;quickstart.md 其支持的模型种类，参考，https:&#x2F;&#x2F;github.com&#x2F;triton-inference-server&#x2F;server&#x2F;blob&#x2F;main&#x2F;docs&#x2F;model_repository.md#mo">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Triton Server——Model Serving">
+<meta property="og:url" content="https://fffffaraway.github.io/2022/06/19/triton-server/index.html">
+<meta property="og:site_name" content="Faraway">
+<meta property="og:description" content="Triton Server官方文档可以参考，https:&#x2F;&#x2F;github.com&#x2F;triton-inference-server&#x2F;server&#x2F;blob&#x2F;main&#x2F;docs&#x2F;quickstart.md 其支持的模型种类，参考，https:&#x2F;&#x2F;github.com&#x2F;triton-inference-server&#x2F;server&#x2F;blob&#x2F;main&#x2F;docs&#x2F;model_repository.md#mo">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2022-06-19T07:02:35.000Z">
+<meta property="article:modified_time" content="2022-07-25T07:32:43.983Z">
+<meta property="article:author" content="Song Wei">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+  
+  <title>Triton Server——Model Serving - Faraway</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"fffffaraway.github.io","root":"/","version":"1.9.2","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.2.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>Fluid</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                Home
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                Archives
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                Categories
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                Tags
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                About
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="Triton Server——Model Serving"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2022-06-19 15:02" pubdate>
+          June 19, 2022 pm
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          4.6k words
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          39 mins
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">Triton Server——Model Serving</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>Triton Server官方文档可以参考，<a target="_blank" rel="noopener" href="https://github.com/triton-inference-server/server/blob/main/docs/quickstart.md">https://github.com/triton-inference-server/server/blob/main/docs/quickstart.md</a></p>
+<p>其支持的模型种类，参考，<a target="_blank" rel="noopener" href="https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md#model-files">https://github.com/triton-inference-server/server/blob/main/docs/model_repository.md#model-files</a></p>
+<p>triton要求使用torchscript（可以认为是tensorflow v1），而非eager，参考，<a target="_blank" rel="noopener" href="https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html">https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html</a>，因此在存储模型的时候要注意一下</p>
+<p>每个模型需要一个配置文件来描述其输入输出：配置文件config.pbtxt的参考文档，<a target="_blank" rel="noopener" href="https://github.com/triton-inference-server/server/blob/main/docs/model_configuration.md">https://github.com/triton-inference-server/server/blob/main/docs/model_configuration.md</a></p>
+<p>config.pbtxt的一个简单示例：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs dts"><span class="hljs-symbol">name:</span> <span class="hljs-string">&quot;simple&quot;</span><br><span class="hljs-symbol">platform:</span> <span class="hljs-string">&quot;pytorch_libtorch&quot;</span><br><span class="hljs-symbol">max_batch_size:</span> <span class="hljs-number">4</span><br>input [<br>  <span class="hljs-punctuation">&#123;</span><br><span class="hljs-symbol">    name:</span> <span class="hljs-string">&quot;input&quot;</span><br><span class="hljs-symbol">    data_type:</span> TYPE_FP32<br><span class="hljs-symbol">    dims:</span> [ <span class="hljs-number">2</span> ]<br>  <span class="hljs-punctuation">&#125;</span><br>]<br>output [<br>  <span class="hljs-punctuation">&#123;</span><br><span class="hljs-symbol">    name:</span> <span class="hljs-string">&quot;OUTPUT__0&quot;</span><br><span class="hljs-symbol">    data_type:</span> TYPE_FP32<br><span class="hljs-symbol">    dims:</span> [ <span class="hljs-number">1</span> ]<br>  <span class="hljs-punctuation">&#125;</span><br>]<br></code></pre></td></tr></table></figure>
+
+<p>模型结构假设为</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs stylus">in_dim, hidden_dim, out_dim = <span class="hljs-number">2</span>, <span class="hljs-number">4</span>, <span class="hljs-number">1</span><br>hp = json<span class="hljs-selector-class">.load</span>(<span class="hljs-built_in">open</span>(<span class="hljs-string">&#x27;hp.json&#x27;</span>, <span class="hljs-string">&#x27;r&#x27;</span>))<br><br>model = nn<span class="hljs-selector-class">.Sequential</span>(<br>    nn<span class="hljs-selector-class">.Linear</span>(in_dim, hidden_dim),<br>    nn<span class="hljs-selector-class">.GELU</span>(),<br>    nn<span class="hljs-selector-class">.Dropout</span>(hp<span class="hljs-selector-attr">[<span class="hljs-string">&quot;dropout&quot;</span>]</span>),<br>    nn<span class="hljs-selector-class">.Linear</span>(hidden_dim, hidden_dim),<br>    nn<span class="hljs-selector-class">.GELU</span>(),<br>    nn<span class="hljs-selector-class">.Dropout</span>(hp<span class="hljs-selector-attr">[<span class="hljs-string">&quot;dropout&quot;</span>]</span>),<br>    nn<span class="hljs-selector-class">.Linear</span>(hidden_dim, out_dim)<br>)<br></code></pre></td></tr></table></figure>
+
+<p>训练好模型之后，通过python代码将模型与配置文件都存储到S3中</p>
+<figure class="highlight routeros"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><code class="hljs routeros">session = boto3.session.Session()<br><br>s3_client = session.client(<br>    <span class="hljs-attribute">service_name</span>=<span class="hljs-string">&#x27;s3&#x27;</span>,<br>    <span class="hljs-attribute">aws_access_key_id</span>=<span class="hljs-string">&#x27;XXX&#x27;</span>,<br>    <span class="hljs-attribute">aws_secret_access_key</span>=<span class="hljs-string">&#x27;XXX&#x27;</span>,<br>    <span class="hljs-attribute">endpoint_url</span>=<span class="hljs-string">&#x27;&lt;http://10.105.222.7:24850&gt;&#x27;</span>,<br>)<br><span class="hljs-built_in">print</span>(s3_client.list_buckets())<br><br>buffer = io.BytesIO()<br>model_scripted = script(model)<br>torch.jit.save(model_scripted, buffer)<br>s3_client.put_object(<span class="hljs-attribute">Bucket</span>=<span class="hljs-string">&quot;mlflow-artifact&quot;</span>, <span class="hljs-attribute">Key</span>=<span class="hljs-string">&#x27;manual/test/model_repository/simple/1/model.pt&#x27;</span>,<br>                     <span class="hljs-attribute">Body</span>=buffer.getvalue())<br>with open(<span class="hljs-string">&#x27;config.pbtxt&#x27;</span>, <span class="hljs-string">&#x27;r&#x27;</span>) as f:<br>    s3_client.put_object(<span class="hljs-attribute">Bucket</span>=<span class="hljs-string">&quot;mlflow-artifact&quot;</span>, <span class="hljs-attribute">Key</span>=<span class="hljs-string">&#x27;manual/test/model_repository/simple/config.pbtxt&#x27;</span>,<br>                         <span class="hljs-attribute">Body</span>=f.read())<br></code></pre></td></tr></table></figure>
+
+<p>之后通过triton server连接S3访问模型文件夹，先试试docker</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs awk">docker run --rm -p <span class="hljs-number">8000</span>:<span class="hljs-number">8000</span> -p <span class="hljs-number">8001</span>:<span class="hljs-number">8001</span> -p <span class="hljs-number">8002</span>:<span class="hljs-number">8002</span> \\<br>-e AWS_ACCESS_KEY_ID=XXX \\<br>-e AWS_SECRET_ACCESS_KEY=XXX \\<br>nvcr.io<span class="hljs-regexp">/nvidia/</span>tritonserver:<span class="hljs-number">22.05</span>-py3 tritonserver \\<br>--model-repository=s3:<span class="hljs-regexp">//</span>http:<span class="hljs-regexp">//</span><span class="hljs-number">10.105</span>.<span class="hljs-number">222.7</span>:<span class="hljs-number">24850</span><span class="hljs-regexp">/mlflow-artifact/m</span>anual<span class="hljs-regexp">/test/m</span>odel_repository<br></code></pre></td></tr></table></figure>
+
+<p>Docker上没问题后，使用seldon core部署triton server到k8s集群中：</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><code class="hljs dts"><span class="hljs-symbol">apiVersion:</span> machinelearning.seldon.io/v1<br><span class="hljs-symbol">kind:</span> SeldonDeployment<br><span class="hljs-symbol">metadata:</span><br><span class="hljs-symbol">  name:</span> triton-simple-model<br><span class="hljs-symbol">  namespace:</span> seldon<br><span class="hljs-symbol">spec:</span><br><span class="hljs-symbol">  name:</span> triton-simple<br><span class="hljs-symbol">  predictors:</span><br>  - graph:<br><span class="hljs-symbol">      implementation:</span> TRITON_SERVER<br><span class="hljs-symbol">      modelUri:</span> s3:<span class="hljs-comment">//mlflow-artifact/manual/test/model_repository</span><br><span class="hljs-symbol">      name:</span> classifier<br><span class="hljs-symbol">    name:</span> default<br><span class="hljs-symbol">    replicas:</span> <span class="hljs-number">1</span><br><span class="hljs-meta"># 【这个很重要，必须要加，对应了values中的镜像】</span><br><span class="hljs-symbol">  protocol:</span> v2<br></code></pre></td></tr></table></figure>
+
+<p>部署完成后，验证</p>
+<figure class="highlight gradle"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs gradle">curl triton-simple-model-<span class="hljs-keyword">default</span>-classifier:<span class="hljs-number">9000</span><span class="hljs-regexp">/v2/m</span>odels<span class="hljs-regexp">/simple/</span>config<br></code></pre></td></tr></table></figure>
+
+<p>输出为</p>
+<figure class="highlight elixir"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs elixir">&#123;<span class="hljs-string">&quot;name&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;simple&quot;</span></span>,<span class="hljs-string">&quot;platform&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;pytorch_libtorch&quot;</span></span>,<span class="hljs-string">&quot;backend&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;pytorch&quot;</span></span>,<span class="hljs-string">&quot;version_policy&quot;</span><span class="hljs-symbol">:</span>&#123;<span class="hljs-string">&quot;latest&quot;</span><span class="hljs-symbol">:</span>&#123;<span class="hljs-string">&quot;num_versions&quot;</span><span class="hljs-symbol">:</span><span class="hljs-number">1</span>&#125;&#125;,<span class="hljs-string">&quot;max_batch_size&quot;</span><span class="hljs-symbol">:</span><span class="hljs-number">4</span>,<span class="hljs-string">&quot;input&quot;</span><span class="hljs-symbol">:</span>[&#123;<span class="hljs-string">&quot;name&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;input&quot;</span></span>,<span class="hljs-string">&quot;data_type&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;TYPE_FP32&quot;</span></span>,<span class="hljs-string">&quot;format&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;FORMAT_NONE&quot;</span></span>,<span class="hljs-string">&quot;dims&quot;</span><span class="hljs-symbol">:</span>[<span class="hljs-number">2</span>],<span class="hljs-string">&quot;is_shape_tensor&quot;</span><span class="hljs-symbol">:false</span>,<span class="hljs-string">&quot;allow_ragged_batch&quot;</span><span class="hljs-symbol">:false</span>,<span class="hljs-string">&quot;optional&quot;</span><span class="hljs-symbol">:false</span>&#125;],<span class="hljs-string">&quot;output&quot;</span><span class="hljs-symbol">:</span>[&#123;<span class="hljs-string">&quot;name&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;OUTPUT__0&quot;</span></span>,<span class="hljs-string">&quot;data_type&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;TYPE_FP32&quot;</span></span>,<span class="hljs-string">&quot;dims&quot;</span><span class="hljs-symbol">:</span>[<span class="hljs-number">1</span>],<span class="hljs-string">&quot;label_filename&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;&quot;</span></span>,<span class="hljs-string">&quot;is_shape_tensor&quot;</span><span class="hljs-symbol">:false</span>&#125;],<span class="hljs-string">&quot;batch_input&quot;</span><span class="hljs-symbol">:[]</span>,<span class="hljs-string">&quot;batch_output&quot;</span><span class="hljs-symbol">:[]</span>,<span class="hljs-string">&quot;optimization&quot;</span><span class="hljs-symbol">:</span>&#123;<span class="hljs-string">&quot;priority&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;PRIORITY_DEFAULT&quot;</span></span>,<span class="hljs-string">&quot;input_pinned_memory&quot;</span><span class="hljs-symbol">:</span>&#123;<span class="hljs-string">&quot;enable&quot;</span><span class="hljs-symbol">:true</span>&#125;,<span class="hljs-string">&quot;output_pinned_memory&quot;</span><span class="hljs-symbol">:</span>&#123;<span class="hljs-string">&quot;enable&quot;</span><span class="hljs-symbol">:true</span>&#125;,<span class="hljs-string">&quot;gather_kernel_buffer_threshold&quot;</span><span class="hljs-symbol">:</span><span class="hljs-number">0</span>,<span class="hljs-string">&quot;eager_batching&quot;</span><span class="hljs-symbol">:false</span>&#125;,<span class="hljs-string">&quot;instance_group&quot;</span><span class="hljs-symbol">:</span>[&#123;<span class="hljs-string">&quot;name&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;simple&quot;</span></span>,<span class="hljs-string">&quot;kind&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;KIND_CPU&quot;</span></span>,<span class="hljs-string">&quot;count&quot;</span><span class="hljs-symbol">:</span><span class="hljs-number">1</span>,<span class="hljs-string">&quot;gpus&quot;</span><span class="hljs-symbol">:[]</span>,<span class="hljs-string">&quot;secondary_devices&quot;</span><span class="hljs-symbol">:[]</span>,<span class="hljs-string">&quot;profile&quot;</span><span class="hljs-symbol">:[]</span>,<span class="hljs-string">&quot;passive&quot;</span><span class="hljs-symbol">:false</span>,<span class="hljs-string">&quot;host_policy&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;&quot;</span></span>&#125;],<span class="hljs-string">&quot;default_model_filename&quot;</span><span class="hljs-symbol">:<span class="hljs-string">&quot;model.pt&quot;</span></span>,<span class="hljs-string">&quot;cc_model_filenames&quot;</span><span class="hljs-symbol">:</span>&#123;&#125;,<span class="hljs-string">&quot;metric_tags&quot;</span><span class="hljs-symbol">:</span>&#123;&#125;,<span class="hljs-string">&quot;parameters&quot;</span><span class="hljs-symbol">:</span>&#123;&#125;,<span class="hljs-string">&quot;model_warmup&quot;</span><span class="hljs-symbol">:[]</span>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>验证模型推断</p>
+<figure class="highlight coq"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs coq">curl <span class="hljs-number">10.111</span><span class="hljs-number">.154</span><span class="hljs-number">.79</span>:<span class="hljs-number">9000</span>/v2/models/<span class="hljs-built_in">simple</span>/infer -d \\<br>&#x27;&#123;<span class="hljs-string">&quot;inputs&quot;</span>:[&#123;<span class="hljs-string">&quot;name&quot;</span>:<span class="hljs-string">&quot;input&quot;</span>,<span class="hljs-string">&quot;datatype&quot;</span>:<span class="hljs-string">&quot;FP32&quot;</span>,<span class="hljs-string">&quot;shape&quot;</span>:[<span class="hljs-number">1</span>,<span class="hljs-number">2</span>],<span class="hljs-string">&quot;data&quot;</span>:[[<span class="hljs-number">2</span>,<span class="hljs-number">3</span>]]&#125;]&#125;&#x27;<br></code></pre></td></tr></table></figure>
+
+<p>模型输出为</p>
+<figure class="highlight prolog"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs prolog">&#123;<span class="hljs-string">&quot;model_name&quot;</span>:<span class="hljs-string">&quot;simple&quot;</span>,<span class="hljs-string">&quot;model_version&quot;</span>:<span class="hljs-string">&quot;1&quot;</span>,<span class="hljs-string">&quot;outputs&quot;</span>:[&#123;<span class="hljs-string">&quot;name&quot;</span>:<span class="hljs-string">&quot;OUTPUT__0&quot;</span>,<span class="hljs-string">&quot;datatype&quot;</span>:<span class="hljs-string">&quot;FP32&quot;</span>,<span class="hljs-string">&quot;shape&quot;</span>:[<span class="hljs-number">1</span>,<span class="hljs-number">1</span>],<span class="hljs-string">&quot;data&quot;</span>:[<span class="hljs-number">15.969637870788575</span>]&#125;]&#125;<br></code></pre></td></tr></table></figure>
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+    <div class="post-meta mr-3 d-flex align-items-center">
+      <i class="iconfont icon-category"></i>
+      
+
+<span class="category-chains">
+  
+  
+    
+      <span class="category-chain">
+        
+  <a href="/categories/uncategorized/" class="category-chain-item">uncategorized</a>
+  
+  
+
+      </span>
+    
+  
+</span>
+
+    </div>
+  
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>Triton Server——Model Serving</div>
+      <div>https://fffffaraway.github.io/2022/06/19/triton-server/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>Author</div>
+          <div>Song Wei</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>Posted on</div>
+          <div>June 19, 2022</div>
+        </div>
+      
+      
+      <div class="license-meta-item">
+        <div>Licensed under</div>
+        <div>
+          
+            
+            
+              <a target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+              <span class="hint--top hint--rounded" aria-label="BY - Attribution">
+                <i class="iconfont icon-by"></i>
+              </span>
+              </a>
+            
+          
+        </div>
+      </div>
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/2022/06/19/horovod-in-docker/" title="Horovod in Docker">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">Horovod in Docker</span>
+                        <span class="visible-mobile">Previous</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  <article id="comments" lazyload>
+    
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#comments', function() {
+      var light = 'github-light';
+      var dark = 'github-dark';
+      var schema = document.documentElement.getAttribute('data-user-color-scheme');
+      if (schema === 'dark') {
+        schema = dark;
+      } else {
+        schema = light;
+      }
+      window.UtterancesThemeLight = light;
+      window.UtterancesThemeDark = dark;
+      var s = document.createElement('script');
+      s.setAttribute('src', 'https://utteranc.es/client.js');
+      s.setAttribute('repo', 'FFFFFaraway/FFFFFaraway.github.io');
+      s.setAttribute('issue-term', 'pathname');
+      
+      s.setAttribute('label', 'utterances');
+      
+      s.setAttribute('theme', schema);
+      s.setAttribute('crossorigin', 'anonymous');
+      document.getElementById('comments').appendChild(s);
+    })
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+  </article>
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;Table of Contents</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">Search</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">Keyword</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+    </div>
+  
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      headingSelector : CONFIG.toc.headingSelector || 'h1,h2,h3,h4,h5,h6',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      collapseDepth   : CONFIG.toc.collapseDepth || 0,
+      scrollSmooth    : true,
+      headingsOffset  : -boardTop
+    });
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.10/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">Blog works best with JavaScript enabled</div>
+  </noscript>
+</body>
+</html>
