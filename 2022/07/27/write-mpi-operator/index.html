@@ -24,7 +24,7 @@
 <meta property="og:description" content="上次篇文章总结了MPI Operator需要做的事情，以及手动部署的实践。我们既然都可以手动部署出worker了，干脆再进一步，将该过程用代码实现，写一个MPI Operator。Github 动机目前的MPI Operator还存在哪些不足？  代码较多。大概4000+行，本身属于kubeflow子项目，存在较多kubeflow依赖。不过该Operator的核心功能并不复杂。 缺少对于缺失Pod">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2022-07-27T04:44:20.000Z">
-<meta property="article:modified_time" content="2022-07-28T07:02:33.624Z">
+<meta property="article:modified_time" content="2022-07-29T07:44:49.163Z">
 <meta property="article:author" content="Song Wei">
 <meta name="twitter:card" content="summary_large_image">
   
@@ -249,7 +249,7 @@
               <div class="markdown-body">
                 
                 <p>上次篇文章总结了MPI Operator需要做的事情，以及手动部署的实践。我们既然都可以手动部署出worker了，干脆再进一步，将该过程用代码实现，写一个MPI Operator。<a target="_blank" rel="noopener" href="https://github.com/FFFFFaraway/MPI-Operator">Github</a></p>
-<h1 id="动机"><a href="#动机" class="headerlink" title="动机"></a>动机</h1><p>目前的MPI Operator还存在哪些不足？</p>
+<h2 id="动机"><a href="#动机" class="headerlink" title="动机"></a>动机</h2><p>目前的MPI Operator还存在哪些不足？</p>
 <ol>
 <li>代码较多。大概4000+行，本身属于kubeflow子项目，存在较多kubeflow依赖。不过该Operator的核心功能并不复杂。</li>
 <li>缺少对于缺失Pod的恢复操作。代码中，看上去是ReplicaSet控制Worker&#x2F;Launcher Pod，实际上是Operator单独控制Pod，<a target="_blank" rel="noopener" href="https://github.com/kubeflow/mpi-operator/blob/993b010e05c48c6f6ef5a5180362ccd3e716982e/pkg/controllers/v1/mpi_job_controller.go#L869">源码</a>中以Pod为单位进行Create，而非ReplicaSet。原因可能是ReplicaSet无法控制名字生成，从而无法事先写好ConfigMap中的hostfile。因此，只要有一个worker pod启动失败了，那么就需要手动删除MPIJob（触发Operator删除所有Pod），再重新Create MPIJob。</li>

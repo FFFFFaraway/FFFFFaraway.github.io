@@ -24,7 +24,7 @@
 <meta property="og:description" content="上一篇文章将Horovod封装到Docker image中，本文将进一步将其部署到Kubernetes集群上进行多机多GPU分布式训练。借助的工具为MPI-Operator，https:&#x2F;&#x2F;github.com&#x2F;kubeflow&#x2F;mpi-operator 我们已经有horovod镜像了，部署到K8S上不是小菜一碟吗？然而没有那么简单，中间还有一些要注意的点。 简单尝试如果仅用kubectl来部署，">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2022-07-07T10:02:53.000Z">
-<meta property="article:modified_time" content="2022-07-25T09:05:46.072Z">
+<meta property="article:modified_time" content="2022-07-29T07:48:05.017Z">
 <meta property="article:author" content="Song Wei">
 <meta name="twitter:card" content="summary_large_image">
   
@@ -194,7 +194,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          8.4k words
+          8.5k words
         
       </span>
     
@@ -294,6 +294,7 @@
 <!-- empty line -->
 
 <p>目前有个难受的点是，master需要等待worker安装完环境才能运行horovodrun命令，因此写了一个<strong>sleep 1m</strong>。后续应该可以用一些Pod之间的通信方式解决这个。</p>
+<p>更新，可以通过readinessProbe解决。<a target="_blank" rel="noopener" href="https://github.com/FFFFFaraway/MPI-Operator/blob/d180e938502e5af56ecc3105d4f904d9e14cb712/config/samples/training_job_cpu.yaml#L38">例子</a></p>
 
                 
               </div>
