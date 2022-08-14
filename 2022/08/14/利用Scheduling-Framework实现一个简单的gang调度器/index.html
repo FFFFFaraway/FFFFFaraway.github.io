@@ -1,0 +1,675 @@
+
+
+<!DOCTYPE html>
+<html lang="en" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="Song Wei">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="写在前面，该项目gang-scheduler是面向此项目造轮子，省略了PodGroup CRD的创建与管理，改用ConfigMap来记录PodGroup的简陋版，仅方便学习。 动机在上一篇文章中，我们写了一个简单的MPI Operator，其可以根据MPIJob任务需求生成Pod来进行分布式训练。在使用过程中，我发现一个不是很好的现象：在资源不足的情况下，新建一个训练任务，虽然资源（例如GPU）不">
+<meta property="og:type" content="article">
+<meta property="og:title" content="利用Scheduling Framework实现一个简单的gang调度器">
+<meta property="og:url" content="https://fffffaraway.github.io/2022/08/14/%E5%88%A9%E7%94%A8Scheduling-Framework%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E7%9A%84gang%E8%B0%83%E5%BA%A6%E5%99%A8/index.html">
+<meta property="og:site_name" content="Faraway">
+<meta property="og:description" content="写在前面，该项目gang-scheduler是面向此项目造轮子，省略了PodGroup CRD的创建与管理，改用ConfigMap来记录PodGroup的简陋版，仅方便学习。 动机在上一篇文章中，我们写了一个简单的MPI Operator，其可以根据MPIJob任务需求生成Pod来进行分布式训练。在使用过程中，我发现一个不是很好的现象：在资源不足的情况下，新建一个训练任务，虽然资源（例如GPU）不">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="http://dockone.io/uploads/article/20211202/93df3081d0cd353cc56f2061607472c1.jpeg">
+<meta property="og:image" content="https://fffffaraway.github.io/img/7.png">
+<meta property="article:published_time" content="2022-08-14T09:51:38.000Z">
+<meta property="article:modified_time" content="2022-08-14T16:16:21.116Z">
+<meta property="article:author" content="Song Wei">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="http://dockone.io/uploads/article/20211202/93df3081d0cd353cc56f2061607472c1.jpeg">
+  
+  
+  
+  <title>利用Scheduling Framework实现一个简单的gang调度器 - Faraway</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"fffffaraway.github.io","root":"/","version":"1.9.2","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml"};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.2.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>🏠</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                Archives
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                About
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/links/">
+                <i class="iconfont icon-link-fill"></i>
+                Links
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              &nbsp;<i class="iconfont icon-search"></i>&nbsp;
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="利用Scheduling Framework实现一个简单的gang调度器"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2022-08-14 17:51" pubdate>
+          August 14, 2022 pm
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          6.3k words
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          53 mins
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">利用Scheduling Framework实现一个简单的gang调度器</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>写在前面，该项目<a target="_blank" rel="noopener" href="https://github.com/FFFFFaraway/gang-scheduler">gang-scheduler</a>是面向<a target="_blank" rel="noopener" href="https://github.com/kubernetes-sigs/scheduler-plugins">此项目</a>造轮子，省略了PodGroup CRD的创建与管理，改用ConfigMap来记录PodGroup的简陋版，仅方便学习。</p>
+<h1 id="动机"><a href="#动机" class="headerlink" title="动机"></a>动机</h1><p>在上一篇文章中，我们写了一个简单的MPI Operator，其可以根据MPIJob任务需求生成Pod来进行分布式训练。在使用过程中，我发现一个不是很好的现象：在资源不足的情况下，新建一个训练任务，虽然资源（例如GPU）不足以满足训练任务，但集群依旧会“尽量”（能分配一个Pod就分配一个Pod）分配资源生成Worker，使一部分Worker处于Running状态，等待Launcher的命令，而另一部分Worker则由于后续资源不足而处于Pending的状态，导致任务无法启动，而浪费了资源。</p>
+<p>比如，假设我们需要5个GPU来进行训练任务，而集群中可用的GPU只有4个。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">batch.test.bdap.com/v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">MPIJob</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">simple-train</span><br>  <span class="hljs-attr">namespace:</span> <span class="hljs-string">sw-mpi-operator</span><br><span class="hljs-attr">spec:</span><br>  <span class="hljs-attr">numWorkers:</span> <span class="hljs-number">5</span><br>  <span class="hljs-attr">launcherTemplate:</span><br>    <span class="hljs-attr">spec:</span><br>      <span class="hljs-attr">containers:</span><br>        <span class="hljs-bullet">-</span> <span class="hljs-attr">image:</span> <span class="hljs-string">farawaya/horovod-torch-cpu</span><br>          <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-master</span><br>  <span class="hljs-attr">workerTemplate:</span><br>    <span class="hljs-attr">spec:</span><br>      <span class="hljs-attr">containers:</span><br>        <span class="hljs-bullet">-</span> <span class="hljs-attr">args:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">sleep</span> <span class="hljs-string">infinity</span><br>          <span class="hljs-attr">command:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">/bin/sh</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">-c</span><br>          <span class="hljs-attr">image:</span> <span class="hljs-string">farawaya/horovod-torch-cuda113</span><br>          <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-worker</span><br>          <span class="hljs-attr">resources:</span><br>            <span class="hljs-attr">limits:</span><br>              <span class="hljs-attr">nvidia.com/gpu:</span> <span class="hljs-number">1</span><br>      <span class="hljs-attr">tolerations:</span><br>        <span class="hljs-bullet">-</span> <span class="hljs-attr">effect:</span> <span class="hljs-string">NoSchedule</span><br>          <span class="hljs-attr">key:</span> <span class="hljs-string">gpu</span><br>          <span class="hljs-attr">operator:</span> <span class="hljs-string">Exists</span><br></code></pre></td></tr></table></figure>
+
+<p>根据MPI Operator中的流程，由于Workers未全部就绪，无法生成Launcher来启动任务</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">NAME                                      READY   STATUS    RESTARTS   AGE<br>mpi-controller-manager-6fdb6ffd94-sjlrr   1/1     Running   0          18d<br>simple-train-worker-0                     1/1     Running   0          3m12s<br>simple-train-worker-1                     1/1     Running   0          3m12s<br>simple-train-worker-2                     1/1     Running   0          3m12s<br>simple-train-worker-3                     1/1     Running   0          3m11s<br>simple-train-worker-4                     0/1     Pending   0          3m11s<br></code></pre></td></tr></table></figure>
+
+<p>可以查看Operator的日志进行验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">1.6604734402540798e+09	INFO	controller.mpijob	workers not ready	&#123;<span class="hljs-string">&quot;reconciler group&quot;</span>: <span class="hljs-string">&quot;batch.test.bdap.com&quot;</span>, <span class="hljs-string">&quot;reconciler kind&quot;</span>: <span class="hljs-string">&quot;MPIJob&quot;</span>, <span class="hljs-string">&quot;name&quot;</span>: <span class="hljs-string">&quot;simple-train&quot;</span>, <span class="hljs-string">&quot;namespace&quot;</span>: <span class="hljs-string">&quot;sw-mpi-operator&quot;</span>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>并且Workers会一直占有GPU而等待，造成资源浪费。更坏的情况是，该任务在等待其他Pod完成后释放该资源，但不巧的是，占有该资源的Pod属于另外一个也处于等待状态的训练任务，那么就形成了死锁。</p>
+<p>其形成原因是kubernetes的默认调度器以Pod为单位进行调度，如果我们以整个训练任务作为调度单位，要么给其中所有Pod都分配资源，要么就一个都不分配，“All or Nothing”，则可以解决这个问题，而gang调度正对应了该想法。</p>
+<h1 id="如何自定义Scheduler"><a href="#如何自定义Scheduler" class="headerlink" title="如何自定义Scheduler"></a>如何自定义Scheduler</h1><p>我们先得知道如何去自定义kubernetes中的调度器。</p>
+<p>[一些弯路]</p>
+<p>我在网上搜索到了这篇自定义调度器的<a target="_blank" rel="noopener" href="http://dockone.io/article/2434717">文章</a>，其提到自定义调度器的几种方式：</p>
+<blockquote>
+<ol>
+<li>修改默认调度器的源代码，加入自己的调度算法，然后重新编译和部署调度器，论文<a target="_blank" rel="noopener" href="https://link.springer.com/article/10.1007%2Fs11227-020-03427-3">kcss</a>和<a target="_blank" rel="noopener" href="https://onlinelibrary.wiley.com/doi/10.1002/spe.2898">kubecg</a>中的调度器研究基于此方案实现；</li>
+<li>开发自己的调度器，和默认调度器同时运行在集群中；</li>
+<li>基于<a target="_blank" rel="noopener" href="https://github.com/kubernetes/community/blob/master/contributors/design-proposals/scheduling/scheduler_extender.md">Kubernetes Scheduler Extender机制</a>，在扩展调度器中实现自定义算法，论文<a target="_blank" rel="noopener" href="https://dl.acm.org/doi/10.1145/3407947.3407950">dynamic IO</a>中的算法实现基于这种方案。</li>
+</ol>
+</blockquote>
+<p>其文章中使用的Extender方式，通过给默认调度器注册webhook进行，当默认调度器进行到Filter（预选）、Score（优选）、Bind阶段的时候会通过http请求调用webhook来获取结果。</p>
+<p><img src="http://dockone.io/uploads/article/20211202/93df3081d0cd353cc56f2061607472c1.jpeg" srcset="/img/loading.gif" lazyload></p>
+<p>关于调度流程中的每个阶段介绍，可以参考<a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/scheduling-eviction/scheduling-framework/">K8S Scheduling Framework</a></p>
+<p>尝试与思考之后，我认为仅用Kubernetes Scheduler Extender方法来实现gang调度比较困难，因为它能控制的模块有限，并且我们不想手动去写分配资源的过程，而是想让调度器预分配资源后再根据情况做决定，因此需要在Reserve资源之后的Permit阶段进行修改。并且http请求的速度也比较慢。</p>
+<p>后面发现一篇<a target="_blank" rel="noopener" href="https://cloud.tencent.com/developer/article/1737844">文章</a>中提到四种方式自定义调度器：</p>
+<blockquote>
+<ul>
+<li>default-scheduler recoding: 直接在Kubernetes默认scheduler基础上进行添加，然后重新编译kube-scheduler</li>
+<li>standalone: 实现一个与kube-scheduler平行的custom scheduler，单独或者和默认kube-scheduler一起运行在集群中</li>
+<li>scheduler extender: 实现一个”scheduler extender”，kube-scheduler会调用它(http&#x2F;https)作为默认调度算法(预选&amp;优选&amp;bind)的补充</li>
+<li>scheduler framework: 实现scheduler framework plugins，重新编译kube-scheduler，类似于第一种方案，但是更加标准化，插件化</li>
+</ul>
+</blockquote>
+<p>我认为最后scheduler framework的方式比较合适，我们只需要修改Permit阶段，检查每个Pod，根据其PodGroup对应的信息来判断就好。实现过程后面说，这里先说一下实现完后怎么使用。</p>
+<ol>
+<li>Pod如何找到调度器？Pod通过在spec中指定schedulerName来选择调度器</li>
+<li>调度器如何注册到集群中？调度器本身是kube-scheduler的扩展版，而kube-scheduler启动时，会接收一个config文件路径作为参数，其内容为KubeSchedulerConfiguration类型的yaml文件，其指定了该调度器在集群中的schedulerName，而该名字需要与1中的名字一致。</li>
+</ol>
+<p>一开始调试的时候，可以跑一个与kube-scheduler平行的gang-scheduler，那么即便存在问题也不会影响原本的集群。虽然集群中同时存在多个scheduler的时候，可能会有同一块资源被分配给不同Pod的情况，不过问题不大，等到该调度器稳定后，将其替换默认的调度器就可以了。</p>
+<p>[插件是write还是append？]</p>
+<p>btw，我们写插件的时候，不需要担心自己的某个阶段（如Filter）会覆盖原有的阶段，除了QueueSort阶段外，我们的阶段都是附加的，这一点可以通过看源代码验证，可以看到对于Taint的检测也是通过插件的方式来进行的。</p>
+<p><img src="/img/7.png" srcset="/img/loading.gif" lazyload></p>
+<h1 id="如何实现gang调度"><a href="#如何实现gang调度" class="headerlink" title="如何实现gang调度"></a>如何实现gang调度</h1><p>这部分我也没想到什么好思路，不过搜索到了阿里的一篇好文：<a target="_blank" rel="noopener" href="https://www.infoq.cn/article/Q1l845yOl2GAF8WIVtCW">进击的 Kubernetes 调度系统（二）：支持批任务的 Coscheduling&#x2F;Gang scheduling</a>，发现他们已经早在两年前就已经完成并开源了这份工作，<a target="_blank" rel="noopener" href="https://github.com/kubernetes-sigs/scheduler-plugins">源码</a>。墙裂推荐去看一下，本文的调度器也是仿照它造轮子，不过也存在一些改动。</p>
+<p>博客中记录的是第一个版本的简单做法，使用label即可实现，<a target="_blank" rel="noopener" href="https://github.com/kubernetes-sigs/scheduler-plugins/commit/98b12f1258ca407917cf71c298b91d7eb5b1706a">对应commit</a>，源码中目前是第二版本，使用CRD PodGroup实现，我猜想有两个原因：1. 防止同一个PodGroup中的Pod写的label声明的minAvailable不一致的情况。2. 解耦，podgroup本身不应该由scheduler管理，而应该由单独的operator进行管理。那为什么不用ConfigMap呢？我猜想是需要记录下PodGroup的一些Status。不过我们的使用情况比较简单，我偷点懒，就不写PodGroup的Operator了，简单使用ConfigMap来记录PodGroup信息，也能把PodGroup的控制权交给用户，让用户来维护，不需要scheduler来考虑创建与回收，也没有引入CRD管理，无需controller。</p>
+<h2 id="Permit阶段"><a href="#Permit阶段" class="headerlink" title="Permit阶段"></a>Permit阶段</h2><p>我们的目标是把带有PodGroup标记的Pod都拦截下来，看看集群能否满足PodGroup整体的资源需求，如果满足条件就放行。因为到达这一步的Pod都已经经过Reserve阶段，资源已经预留下来，因此只需看到达该阶段的Pod是否达到数量要求就行，一共就三步：</p>
+<ol>
+<li>判断Pod的Label中是否标注了PodGroup，如果没有，说明是普通的Pod，不影响它，直接进入下一阶段</li>
+<li>如果Label中写明了PodGroup，则记录该PodGroup对应需要的minAvailable</li>
+<li>判断此时是否已经满足minAvailable，如果满足，则进入下一阶段，否则进入Wait状态</li>
+</ol>
+<p>其中“判断此时是否已经满足minAvailable”也包括三步：</p>
+<ol>
+<li>所有之前一定时间内的Wait状态的Pod都在一个队列中，我们查询该队列，给处于PodGroup的Pod计数。</li>
+<li>查询当前集群，给属于该PodGroup的Pod计数，并且需要Pod处于Running状态下。</li>
+<li>判断1和2的总和再加上当前Pod是否满足minAvailable</li>
+</ol>
+<p>[什么情况会出现该PodGroup已经有一些Pod在运行了，而一些Pod还在等待调度的队列中呢？]</p>
+<p>当第一次分配时就满足minAvailable条件，已经跑起来之后，后续又新增属于该PodGroup中的Pod，在调度这些新增Pod的时候。</p>
+<h2 id="QueueSort阶段"><a href="#QueueSort阶段" class="headerlink" title="QueueSort阶段"></a>QueueSort阶段</h2><p>仅修改Permit还不够。原因：Default Scheduler的队列并不能感知PodGroup的信息，如果有多个PodGroup，那么不同PodGroup中的Pod有可能在队列里面交错，那么进入Reserve阶段的Pod也是交错的，因此还是产生死锁。因此我们需要添加QueueSort Plugin。</p>
+<p>我们的目标是让不同的PodGroup中的Pod不能交错。做法：查询两个Pod对应的PodGroup标签，看是否属于某个PodGroup</p>
+<ol>
+<li>都不属于，则按照优先级，再按照create时间排序</li>
+<li>都属于，则按照PodGroup的create时间排序，时间相同说明属于同一个PodGroup，则按照1进行</li>
+<li>一个属于，一个不属于，则让不属于PodGroup的先行一步</li>
+</ol>
+<h1 id="如何使用gang-scheduler"><a href="#如何使用gang-scheduler" class="headerlink" title="如何使用gang-scheduler"></a>如何使用gang-scheduler</h1><p>安装与更加详细的例子，可以查看<a target="_blank" rel="noopener" href="https://github.com/FFFFFaraway/gang-scheduler">gang-scheduler</a></p>
+<p>本文就拿之前动机部分的GPU举例，新增一个ConfigMap记录PodGroup信息：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">ConfigMap</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">gpu-pg</span><br>  <span class="hljs-attr">namespace:</span> <span class="hljs-string">sw-mpi-operator</span><br><span class="hljs-attr">data:</span><br>  <span class="hljs-attr">minAvailable:</span> <span class="hljs-string">&quot;5&quot;</span><br>  <span class="hljs-attr">scheduleTimeoutSeconds:</span> <span class="hljs-string">&quot;20&quot;</span><br></code></pre></td></tr></table></figure>
+
+<p>修改Pod信息，在label中添加<code>pod-group.scheduling.bdap.com/podgroup-configmap: gpu-pg</code>，以及修改调度器<code>schedulerName: gang-scheduler</code></p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">apiVersion:</span> <span class="hljs-string">batch.test.bdap.com/v1</span><br><span class="hljs-attr">kind:</span> <span class="hljs-string">MPIJob</span><br><span class="hljs-attr">metadata:</span><br>  <span class="hljs-attr">name:</span> <span class="hljs-string">simple-train</span><br>  <span class="hljs-attr">namespace:</span> <span class="hljs-string">sw-mpi-operator</span><br><span class="hljs-attr">spec:</span><br>  <span class="hljs-attr">numWorkers:</span> <span class="hljs-number">5</span><br>  <span class="hljs-attr">launcherTemplate:</span><br>    <span class="hljs-attr">spec:</span><br>      <span class="hljs-attr">containers:</span><br>        <span class="hljs-bullet">-</span> <span class="hljs-attr">image:</span> <span class="hljs-string">farawaya/horovod-torch-cpu</span><br>          <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-master</span><br>  <span class="hljs-attr">workerTemplate:</span><br>    <span class="hljs-attr">metadata:</span><br>      <span class="hljs-attr">labels:</span><br>        <span class="hljs-attr">pod-group.scheduling.bdap.com/podgroup-configmap:</span> <span class="hljs-string">gpu-pg</span><br>    <span class="hljs-attr">spec:</span><br>      <span class="hljs-attr">schedulerName:</span> <span class="hljs-string">gang-scheduler</span><br>      <span class="hljs-attr">containers:</span><br>        <span class="hljs-bullet">-</span> <span class="hljs-attr">args:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">sleep</span> <span class="hljs-string">infinity</span><br>          <span class="hljs-attr">command:</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">/bin/sh</span><br>            <span class="hljs-bullet">-</span> <span class="hljs-string">-c</span><br>          <span class="hljs-attr">image:</span> <span class="hljs-string">farawaya/horovod-torch-cuda113</span><br>          <span class="hljs-attr">name:</span> <span class="hljs-string">horovod-worker</span><br>          <span class="hljs-attr">resources:</span><br>            <span class="hljs-attr">limits:</span><br>              <span class="hljs-attr">nvidia.com/gpu:</span> <span class="hljs-number">1</span><br>      <span class="hljs-attr">tolerations:</span><br>        <span class="hljs-bullet">-</span> <span class="hljs-attr">effect:</span> <span class="hljs-string">NoSchedule</span><br>          <span class="hljs-attr">key:</span> <span class="hljs-string">gpu</span><br>          <span class="hljs-attr">operator:</span> <span class="hljs-string">Exists</span><br></code></pre></td></tr></table></figure>
+
+<p>运行结果：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs bash">NAME                                      READY   STATUS    RESTARTS   AGE<br>mpi-controller-manager-6fdb6ffd94-np6pg   1/1     Running   0          79s<br>simple-train-worker-0                     0/1     Pending   0          11s<br>simple-train-worker-1                     0/1     Pending   0          11s<br>simple-train-worker-2                     0/1     Pending   0          11s<br>simple-train-worker-3                     0/1     Pending   0          11s<br>simple-train-worker-4                     0/1     Pending   0          11s<br></code></pre></td></tr></table></figure>
+
+<p>查看原因：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">Events:<br>  Type     Reason            Age   From            Message<br>  ----     ------            ----  ----            -------<br>  Warning  FailedScheduling  55s   gang-scheduler  rejected due to <span class="hljs-built_in">timeout</span> after waiting 20s at plugin sample<br>  Warning  FailedScheduling  33s   gang-scheduler  rejected due to <span class="hljs-built_in">timeout</span> after waiting 20s at plugin sample<br></code></pre></td></tr></table></figure>
+
+<p>如果我们不创建PodGroup对应的ConfigMap就直接使用其作为label，也会出现提示：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs bash">Events:<br>  Type     Reason            Age   From            Message<br>  ----     ------            ----  ----            -------<br>  Warning  FailedScheduling  14s   gang-scheduler  running Permit plugin <span class="hljs-string">&quot;sample&quot;</span>: podgroup configmap not found, please create configmap first<br>  Warning  FailedScheduling  13s   gang-scheduler  running Permit plugin <span class="hljs-string">&quot;sample&quot;</span>: podgroup configmap not found, please create configmap first<br></code></pre></td></tr></table></figure>
+
+
+
+
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>利用Scheduling Framework实现一个简单的gang调度器</div>
+      <div>https://fffffaraway.github.io/2022/08/14/利用Scheduling-Framework实现一个简单的gang调度器/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>Author</div>
+          <div>Song Wei</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>Posted on</div>
+          <div>August 14, 2022</div>
+        </div>
+      
+      
+      <div class="license-meta-item">
+        <div>Licensed under</div>
+        <div>
+          
+            
+            
+              <a target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+              <span class="hint--top hint--rounded" aria-label="BY - Attribution">
+                <i class="iconfont icon-by"></i>
+              </span>
+              </a>
+            
+          
+        </div>
+      </div>
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/2022/07/27/write-mpi-operator/" title="使用kubebuilder编写自己的MPI Operator">
+                        <span class="hidden-mobile">使用kubebuilder编写自己的MPI Operator</span>
+                        <span class="visible-mobile">Next</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  <article id="comments" lazyload>
+    
+  <script type="text/javascript">
+    Fluid.utils.loadComments('#comments', function() {
+      var light = 'github-light';
+      var dark = 'github-dark';
+      var schema = document.documentElement.getAttribute('data-user-color-scheme');
+      if (schema === 'dark') {
+        schema = dark;
+      } else {
+        schema = light;
+      }
+      window.UtterancesThemeLight = light;
+      window.UtterancesThemeDark = dark;
+      var s = document.createElement('script');
+      s.setAttribute('src', 'https://utteranc.es/client.js');
+      s.setAttribute('repo', 'FFFFFaraway/FFFFFaraway.github.io');
+      s.setAttribute('issue-term', 'pathname');
+      
+      s.setAttribute('label', 'utterances');
+      
+      s.setAttribute('theme', schema);
+      s.setAttribute('crossorigin', 'anonymous');
+      document.getElementById('comments').appendChild(s);
+    })
+  </script>
+  <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+  </article>
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;Table of Contents</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">Search</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">Keyword</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+    </div>
+  
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.0/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.18.2/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      headingSelector : CONFIG.toc.headingSelector || 'h1,h2,h3,h4,h5,h6',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      collapseDepth   : CONFIG.toc.collapseDepth || 0,
+      scrollSmooth    : true,
+      headingsOffset  : -boardTop
+    });
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.10/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">Blog works best with JavaScript enabled</div>
+  </noscript>
+</body>
+</html>
