@@ -207,7 +207,7 @@
       
       <a class="index-excerpt index-excerpt__noimg" href="/2022/08/14/%E5%88%A9%E7%94%A8Scheduling-Framework%E5%AE%9E%E7%8E%B0%E4%B8%80%E4%B8%AA%E7%AE%80%E5%8D%95%E7%9A%84gang%E8%B0%83%E5%BA%A6%E5%99%A8/" target="_self">
         <div>
-          写在前面，该项目gang-scheduler是面向此项目造轮子，省略了PodGroup CRD的创建与管理，改用ConfigMap来记录PodGroup的简陋版，仅方便学习。 动机在上一篇文章中，我们写了一个简单的MPI Operator，其可以根据MPIJob任务需求生成Pod来进行分布式训练。在使用过程中，我发现一个不是很好的现象：在资源不足的情况下，新建一个训练任务，虽然资源（例如GPU）不
+          写在前面，本项目gang-scheduler面向此项目中的cosheduler造轮子，如果只是想使用gang调度器，推荐阅读原项目；如果想了解如何自定义调度器，可以看看本项目，其改用ConfigMap而没有用CRD来管理PodGroup，也省略了一些优化，是原项目的简陋版，仅方便入门学习。 动机在上一篇文章中，我们写了一个简单的MPI Operator，其可以根据MPIJob任务需求生成Pod来进
         </div>
       </a>
 
