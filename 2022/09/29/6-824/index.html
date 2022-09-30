@@ -24,7 +24,7 @@
 <meta property="og:description" content="一个多月没写博客了。是因为入了大名鼎鼎的巨坑——6.824分布式系统的lab。整整一个月爆肝，现在终于写完了，开心。目前Lab4-ShardKv测试了5000次，但也不保证bug free。      我个人的时间分布   （不太准确，中间有的时间可能摸鱼了，比如中秋节）  Lab1-MapReduce：2天左右（8月28通过） Lab2-Raft：共16天 2A：3天左右（8月31通过） 2B：">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2022-09-29T06:18:20.000Z">
-<meta property="article:modified_time" content="2022-09-30T07:03:11.740Z">
+<meta property="article:modified_time" content="2022-09-30T07:12:31.037Z">
 <meta property="article:author" content="Song Wei">
 <meta name="twitter:card" content="summary_large_image">
   
@@ -194,7 +194,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          5.8k words
+          5.9k words
         
       </span>
     
@@ -278,7 +278,7 @@
 </ul>
 </li>
 </ul>
-<p>结合个人感受以及时间分布，我认为Lab4B和Lab2D最难。Lab2具体做法都有参照，而Lab4则比较“自由发挥”。大部分时间都在盯着屏幕阅读log进行“happy” debug，而修bug是非常琐碎的过程，无法形成系统的知识，就不往博客里面写了。这篇博客我主要还是想讲一讲我Lab4B的做法。我做的是<a target="_blank" rel="noopener" href="https://pdos.csail.mit.edu/6.824/labs/lab-shard.html">2022年的Lab</a>。</p>
+<p>结合个人感受以及时间分布，我认为Lab4B和Lab2D最难。Lab2具体做法都有参照，而Lab4则比较“自由发挥”。大部分时间都在盯着屏幕阅读log进行“happy” debug，而修bug是非常琐碎的过程，无法形成系统的知识，就不往博客里面写了。这篇博客我主要还是想讲一讲我Lab4B的做法。我做的是<a target="_blank" rel="noopener" href="https://pdos.csail.mit.edu/6.824/labs/lab-shard.html">2022年的Lab</a>。根据<a target="_blank" rel="noopener" href="https://pdos.csail.mit.edu/6.824/general.html">Collaboration Policy</a>，代码我就不公开了。</p>
 <h1 id="介绍"><a href="#介绍" class="headerlink" title="介绍"></a>介绍</h1><p>Lab3是将数据分布到不同机器上，增加了Fault Tolerance，即便有一部分机器挂了，也能继续运行。但是对不同Key的操作要通过相同的Leader进行Start，直到commit。因此速度与单机相比没有提升（甚至由于存在commit操作，反而更慢了）</p>
 <p>而Lab4在Lab3的基础上，将Key分散到各个ReplicaGroup（RG）上。不同RG管理不同的Shards，让不同Key的请求可以同时进行，从而提高performance。</p>
 <p>先介绍一些概念：</p>
